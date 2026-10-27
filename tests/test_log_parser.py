@@ -73,3 +73,18 @@ def test_does_not_confuse_referer_with_request_target():
     assert entry is not None
     assert entry.target == "/index.html"
     assert entry.referer == "<script>alert(1)</script>"
+
+def test_parses_combined_log_with_extra_quoted_field():
+    line = (
+        '192.0.2.30 - - [27/Oct/2026:10:00:06 +0000] '
+        '"GET /product/123 HTTP/1.1" 404 120 '
+        '"-" "ExampleBot/1.0" "-"'
+    )
+
+    entry = parse_access_log(line)
+
+    assert entry is not None
+    assert entry.target == "/product/123"
+    assert entry.status_code == 404
+    assert entry.referer == "-"
+    assert entry.user_agent == "ExampleBot/1.0"

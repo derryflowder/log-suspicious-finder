@@ -24,7 +24,8 @@ LOG_PATTERN = re.compile(
     r'(?P<status>\d{3})\s+'
     r'(?P<size>\d+|-)'
     r'(?:\s+"(?P<referer>(?:\\.|[^"\\])*)"'
-    r'\s+"(?P<user_agent>(?:\\.|[^"\\])*)")?\s*$'
+    r'\s+"(?P<user_agent>(?:\\.|[^"\\])*)")?'
+    r'(?:\s+"(?:\\.|[^"\\])*")*\s*$'
 )
 
 

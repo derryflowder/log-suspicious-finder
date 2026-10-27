@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .env
+
+# Local analysis output and real log data
+results.json
+samples/real_access.log
