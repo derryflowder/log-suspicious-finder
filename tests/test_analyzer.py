@@ -305,3 +305,19 @@ def test_cli_does_not_overwrite_input_log_with_json(tmp_path):
     assert result.returncode != 0
     assert "JSON output path must differ from input log file" in result.stderr
     assert log_file.read_text(encoding="utf-8") == original_content
+
+
+def test_cli_help_includes_json_option():
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "src.analyzer", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "--json OUTPUT_PATH" in result.stdout
+    assert "Write findings to a JSON file" in result.stdout
