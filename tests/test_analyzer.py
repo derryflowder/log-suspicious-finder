@@ -129,3 +129,24 @@ def test_summarize_findings_counts_all_indicators():
         "HTTP client error (400)": 1,
         "HTTP client error (403)": 1,
     }
+    
+def test_summarize_findings_returns_empty_dict_for_no_results():
+    assert summarize_findings([]) == {}
+
+def test_summarize_findings_does_not_modify_results():
+    results = [
+        (
+            1,
+            "GET /search?q=test",
+            ["possible SQL injection"],
+        )
+    ]
+
+    original_results = [
+        (line_number, line, findings.copy())
+        for line_number, line, findings in results
+    ]
+
+    summarize_findings(results)
+
+    assert results == original_results
