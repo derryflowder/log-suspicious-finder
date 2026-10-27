@@ -1,4 +1,4 @@
-
+import json
 import re
 from pathlib import Path
 from urllib.parse import unquote
@@ -82,6 +82,21 @@ def summarize_findings(
 
     return summary
 
+def export_results_json(
+    results: list[tuple[int, str, list[str]]],
+) -> str:
+    """Convert analysis results into a JSON string."""
+    data = [
+        {
+            "line_number": line_number,
+            "log_line": log_line,
+            "findings": findings,
+        }
+        for line_number, log_line, findings in results
+    ]
+
+    return json.dumps(data, indent=2, ensure_ascii=False)
+
 def main() -> None:
     import argparse
 
@@ -89,6 +104,12 @@ def main() -> None:
         description="Find suspicious indicators in a web access log."
     )
     parser.add_argument("logfile", type=Path, help="Path to the access log")
+    parser.add_argument(
+        "--json",
+        type=Path,
+        metavar="OUTPUT_PATH",
+        help="Write findings to a JSON file",
+    )
     args = parser.parse_args()
 
     try:
@@ -96,6 +117,20 @@ def main() -> None:
     except OSError as error:
         parser.error(f"cannot read log file: {error}")
 
+    if args.json is not None:
+        if args.json.resolve() == args.logfile.resolve():
+            parser.error("JSON output path must differ from input log file")
+
+        try:
+            args.json.write_text(
+                export_results_json(results),
+                encoding="utf-8",
+            )
+        except OSError as error:
+            parser.error(f"cannot write JSON output: {error}")
+
+        print(f"JSON results written to {args.json}")
+        return
 
     if not results:
         print("No suspicious indicators found.")
@@ -113,6 +148,7 @@ def main() -> None:
     for line_number, line, findings in results:
         print(f"[Line {line_number}] {', '.join(findings)}")
         print(f"  {line}")
+
 
 
 if __name__ == "__main__":

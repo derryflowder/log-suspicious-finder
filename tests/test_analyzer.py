@@ -1,12 +1,15 @@
-
-from src.analyzer import analyze_file, analyze_line, summarize_findings
+from src.analyzer import (
+    analyze_file,
+    analyze_line,
+    export_results_json,
+    summarize_findings,
+)
 
 
 def test_normal_request_has_no_findings():
     line = '"GET /index.html HTTP/1.1" 200 1200'
 
     assert analyze_line(line) == []
-
 
 def test_detects_sql_injection():
     line = '"GET /search?q=%27%20OR%201%3D1 HTTP/1.1" 400 320'
@@ -16,7 +19,6 @@ def test_detects_sql_injection():
     assert "possible SQL injection" in findings
     assert "HTTP client error (400)" in findings
 
-
 def test_detects_xss():
     line = '"GET /<script>alert(1)</script> HTTP/1.1" 404 210'
 
@@ -24,7 +26,6 @@ def test_detects_xss():
 
     assert "possible XSS" in findings
     assert "HTTP client error (404)" in findings
-
 
 def test_detects_server_error():
     line = '"GET /page HTTP/1.1" 500 100'
@@ -34,10 +35,8 @@ def test_detects_server_error():
 def test_empty_line_has_no_findings():
     assert analyze_line("") == []
 
-
 def test_malformed_line_has_no_findings():
     assert analyze_line("this is not a valid access log entry") == []
-
 
 def test_encoded_xss_is_detected():
     line = '"GET /search?q=%3Cscript%3E HTTP/1.1" 200 100'
@@ -84,6 +83,7 @@ def test_normal_url_with_unrelated_script_text_is_not_flagged_as_xss():
     findings = analyze_line(line)
 
     assert "possible XSS" not in findings
+
 def test_analyze_file_returns_structured_results(tmp_path):
     log_file = tmp_path / "test.log"
     log_file.write_text(
@@ -150,3 +150,65 @@ def test_summarize_findings_does_not_modify_results():
     summarize_findings(results)
 
     assert results == original_results
+
+import json
+
+
+def test_export_results_json_returns_valid_json():
+    results = [
+        (
+            3,
+            "GET /search?q=test",
+            ["possible SQL injection", "HTTP client error (400)"],
+        )
+    ]
+
+    exported = export_results_json(results)
+    data = json.loads(exported)
+
+    assert data == [
+        {
+            "line_number": 3,
+            "log_line": "GET /search?q=test",
+            "findings": [
+                "possible SQL injection",
+                "HTTP client error (400)",
+            ],
+        }
+    ]
+
+def test_cli_exports_json_to_file(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    log_file = tmp_path / "access.log"
+    output_file = tmp_path / "results.json"
+
+    log_file.write_text(
+        '192.0.2.12 - - [27/Oct/2026:10:00:03 +0000] '
+        '"GET /search?q=%27%20OR%201%3D1 HTTP/1.1" 400 320\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.analyzer",
+            str(log_file),
+            "--json",
+            str(output_file),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert output_file.exists()
+
+    data = json.loads(output_file.read_text(encoding="utf-8"))
+    assert len(data) == 1
+    assert data[0]["line_number"] == 1
+    assert "possible SQL injection" in data[0]["findings"]
