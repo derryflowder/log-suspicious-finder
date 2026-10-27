@@ -23,6 +23,7 @@ SCANNER_PATTERNS = [
 ]
 
 
+
 def analyze_line(line: str) -> list[str]:
     """Return suspicious indicators found in one log line."""
     request_match = re.search(r'"([^"]*)"', line)
@@ -32,16 +33,32 @@ def analyze_line(line: str) -> list[str]:
         return findings
 
     request = request_match.group(1)
-    decoded_request = unquote(request)
+    decoded_request = request
 
+    for _ in range(2):
+        normalized_request = unquote(decoded_request)
 
-    if any(pattern.search(decoded_request) for pattern in SQL_INJECTION_PATTERNS):
+        if normalized_request == decoded_request:
+            break
+
+        decoded_request = normalized_request
+
+    if any(
+        pattern.search(decoded_request)
+        for pattern in SQL_INJECTION_PATTERNS
+    ):
         findings.append("possible SQL injection")
 
-    if any(pattern.search(decoded_request) for pattern in XSS_PATTERNS):
+    if any(
+        pattern.search(decoded_request)
+        for pattern in XSS_PATTERNS
+    ):
         findings.append("possible XSS")
 
-    if any(pattern.search(decoded_request) for pattern in SCANNER_PATTERNS):
+    if any(
+        pattern.search(decoded_request)
+        for pattern in SCANNER_PATTERNS
+    ):
         findings.append("possible scanner probe")
 
     status_match = re.search(r'"[^"]*"\s+(\d{3})\s', line)
@@ -55,7 +72,6 @@ def analyze_line(line: str) -> list[str]:
             findings.append(f"HTTP server error ({status})")
 
     return findings
-
 
 def analyze_file(log_path: Path) -> list[tuple[int, str, list[str]]]:
     """Analyze a log file and return findings with line numbers."""

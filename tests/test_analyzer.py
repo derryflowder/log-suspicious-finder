@@ -321,3 +321,30 @@ def test_cli_help_includes_json_option():
     assert result.returncode == 0
     assert "--json OUTPUT_PATH" in result.stdout
     assert "Write findings to a JSON file" in result.stdout
+
+def test_detects_double_encoded_sql_injection():
+    line = '"GET /search?q=%2527%2520OR%25201%253D1 HTTP/1.1" 200 100'
+
+    findings = analyze_line(line)
+
+    assert "possible SQL injection" in findings
+
+
+def test_detects_double_encoded_xss():
+    line = '"GET /search?q=%253Cscript%253E HTTP/1.1" 200 100'
+
+    findings = analyze_line(line)
+
+    assert "possible XSS" in findings
+
+
+def test_does_not_analyze_user_agent_as_request():
+    line = (
+        '192.0.2.20 - - [27/Oct/2026:10:00:06 +0000] '
+        '"GET /index.html HTTP/1.1" 200 120 '
+        '"<script>alert(1)</script>" "ExampleBrowser/1.0"'
+    )
+
+    findings = analyze_line(line)
+
+    assert "possible XSS" not in findings
