@@ -22,18 +22,26 @@ SCANNER_PATTERNS = [
     re.compile(r"/phpmyadmin(?:\b|/|$)", re.IGNORECASE),
 ]
 
+
 def analyze_line(line: str) -> list[str]:
     """Return suspicious indicators found in one log line."""
-    decoded_line = unquote(line)
+    request_match = re.search(r'"([^"]*)"', line)
     findings = []
 
-    if any(pattern.search(decoded_line) for pattern in SQL_INJECTION_PATTERNS):
+    if not request_match:
+        return findings
+
+    request = request_match.group(1)
+    decoded_request = unquote(request)
+
+
+    if any(pattern.search(decoded_request) for pattern in SQL_INJECTION_PATTERNS):
         findings.append("possible SQL injection")
 
-    if any(pattern.search(decoded_line) for pattern in XSS_PATTERNS):
+    if any(pattern.search(decoded_request) for pattern in XSS_PATTERNS):
         findings.append("possible XSS")
 
-    if any(pattern.search(decoded_line) for pattern in SCANNER_PATTERNS):
+    if any(pattern.search(decoded_request) for pattern in SCANNER_PATTERNS):
         findings.append("possible scanner probe")
 
     status_match = re.search(r'"[^"]*"\s+(\d{3})\s', line)

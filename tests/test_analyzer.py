@@ -53,3 +53,34 @@ def test_detects_scanner_probe():
 
     assert "possible scanner probe" in findings
     assert "HTTP client error (404)" in findings
+
+import subprocess
+import sys
+
+
+def test_cli_reports_missing_file():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.analyzer",
+            "samples/file_that_does_not_exist.log",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "cannot read log file" in result.stderr
+
+def test_normal_url_with_unrelated_script_text_is_not_flagged_as_xss():
+    line = (
+        '192.0.2.20 - - [27/Oct/2026:10:00:06 +0000] '
+        '"GET /search?q=hello HTTP/1.1" 200 120 '
+        '"<script>" "ExampleBrowser/1.0"'
+    )
+
+    findings = analyze_line(line)
+
+    assert "possible XSS" not in findings
