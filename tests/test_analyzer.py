@@ -1,5 +1,5 @@
 
-from src.analyzer import analyze_line
+from src.analyzer import analyze_file, analyze_line, summarize_findings
 
 
 def test_normal_request_has_no_findings():
@@ -84,3 +84,48 @@ def test_normal_url_with_unrelated_script_text_is_not_flagged_as_xss():
     findings = analyze_line(line)
 
     assert "possible XSS" not in findings
+def test_analyze_file_returns_structured_results(tmp_path):
+    log_file = tmp_path / "test.log"
+    log_file.write_text(
+        '192.0.2.12 - - [27/Oct/2026:10:00:03 +0000] '
+        '"GET /search?q=%27%20OR%201%3D1 HTTP/1.1" 400 320\n',
+        encoding="utf-8",
+    )
+
+    results = analyze_file(log_file)
+
+    assert len(results) == 1
+
+    line_number, original_line, findings = results[0]
+
+    assert line_number == 1
+    assert "GET /search" in original_line
+    assert "possible SQL injection" in findings
+    assert "HTTP client error (400)" in findings
+
+def test_summarize_findings_counts_all_indicators():
+    results = [
+        (
+            1,
+            "GET /search?q=test",
+            ["possible SQL injection", "HTTP client error (400)"],
+        ),
+        (
+            2,
+            "GET /admin",
+            ["HTTP client error (403)"],
+        ),
+        (
+            3,
+            "GET /other",
+            ["possible SQL injection"],
+        ),
+    ]
+
+    summary = summarize_findings(results)
+
+    assert summary == {
+        "possible SQL injection": 2,
+        "HTTP client error (400)": 1,
+        "HTTP client error (403)": 1,
+    }

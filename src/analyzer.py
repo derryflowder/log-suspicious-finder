@@ -70,6 +70,18 @@ def analyze_file(log_path: Path) -> list[tuple[int, str, list[str]]]:
 
     return results
 
+def summarize_findings(
+    results: list[tuple[int, str, list[str]]],
+) -> dict[str, int]:
+    """Count how many times each finding appears."""
+    summary = {}
+
+    for _, _, findings in results:
+        for finding in findings:
+            summary[finding] = summary.get(finding, 0) + 1
+
+    return summary
+
 def main() -> None:
     import argparse
 
@@ -91,11 +103,7 @@ def main() -> None:
 
     print(f"Suspicious log lines: {len(results)}")
 
-    summary = {}
-
-    for _, _, findings in results:
-        for finding in findings:
-            summary[finding] = summary.get(finding, 0) + 1
+    summary = summarize_findings(results)
 
     print("\nFindings summary:")
     for finding, count in sorted(summary.items()):
