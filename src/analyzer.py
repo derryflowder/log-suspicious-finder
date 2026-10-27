@@ -3,6 +3,8 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
+from src.log_parser import parse_access_log
+
 SQL_INJECTION_PATTERNS = [
     re.compile(r"\bunion\s+select\b", re.IGNORECASE),
     re.compile(r"\bor\b\s+\d+\s*=\s*\d+", re.IGNORECASE),
@@ -22,17 +24,24 @@ SCANNER_PATTERNS = [
     re.compile(r"/phpmyadmin(?:\b|/|$)", re.IGNORECASE),
 ]
 
-
-
 def analyze_line(line: str) -> list[str]:
     """Return suspicious indicators found in one log line."""
-    request_match = re.search(r'"([^"]*)"', line)
-    findings = []
+    entry = parse_access_log(line)
 
-    if not request_match:
-        return findings
+    if entry is not None:
+        request = entry.target
+        status = entry.status_code
+    else:
+        # Preserve compatibility with lines accepted by the old analyzer.
+        request_match = re.search(r'"([^"]*)"', line)
 
-    request = request_match.group(1)
+        if not request_match:
+            return []
+
+        request = request_match.group(1)
+        status_match = re.search(r'"[^"]*"\s+(\d{3})\s', line)
+        status = int(status_match.group(1)) if status_match else None
+
     decoded_request = request
 
     for _ in range(2):
@@ -42,6 +51,8 @@ def analyze_line(line: str) -> list[str]:
             break
 
         decoded_request = normalized_request
+
+    findings = []
 
     if any(
         pattern.search(decoded_request)
@@ -61,17 +72,14 @@ def analyze_line(line: str) -> list[str]:
     ):
         findings.append("possible scanner probe")
 
-    status_match = re.search(r'"[^"]*"\s+(\d{3})\s', line)
-
-    if status_match:
-        status = int(status_match.group(1))
-
+    if status is not None:
         if 400 <= status <= 499:
             findings.append(f"HTTP client error ({status})")
         elif 500 <= status <= 599:
             findings.append(f"HTTP server error ({status})")
 
     return findings
+
 
 def analyze_file(log_path: Path) -> list[tuple[int, str, list[str]]]:
     """Analyze a log file and return findings with line numbers."""

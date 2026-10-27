@@ -84,6 +84,18 @@ def test_normal_url_with_unrelated_script_text_is_not_flagged_as_xss():
 
     assert "possible XSS" not in findings
 
+def test_xss_in_referer_does_not_flag_safe_request_target():
+    line = (
+        '192.0.2.20 - - [27/Oct/2026:10:00:06 +0000] '
+        '"GET /index.html HTTP/1.1" 200 120 '
+        '"<script>alert(1)</script>" "ExampleBrowser/1.0"'
+    )
+
+    findings = analyze_line(line)
+
+    assert "possible XSS" not in findings
+    assert findings == []
+
 def test_analyze_file_returns_structured_results(tmp_path):
     log_file = tmp_path / "test.log"
     log_file.write_text(
