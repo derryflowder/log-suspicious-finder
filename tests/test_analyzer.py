@@ -212,3 +212,96 @@ def test_cli_exports_json_to_file(tmp_path):
     assert len(data) == 1
     assert data[0]["line_number"] == 1
     assert "possible SQL injection" in data[0]["findings"]
+
+
+def test_cli_exports_empty_results_to_json(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    log_file = tmp_path / "access.log"
+    output_file = tmp_path / "results.json"
+    log_file.write_text(
+        '192.0.2.10 - - [27/Oct/2026:10:00:01 +0000] '
+        '"GET /index.html HTTP/1.1" 200 1200\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.analyzer",
+            str(log_file),
+            "--json",
+            str(output_file),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert output_file.exists()
+    assert json.loads(output_file.read_text(encoding="utf-8")) == []
+
+
+def test_cli_reports_json_write_error(tmp_path):
+    import subprocess
+    import sys
+
+    log_file = tmp_path / "access.log"
+    output_file = tmp_path / "missing" / "results.json"
+    log_file.write_text(
+        '192.0.2.10 - - [27/Oct/2026:10:00:01 +0000] '
+        '"GET /index.html HTTP/1.1" 200 1200\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.analyzer",
+            str(log_file),
+            "--json",
+            str(output_file),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "cannot write JSON output" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_does_not_overwrite_input_log_with_json(tmp_path):
+    import subprocess
+    import sys
+
+    log_file = tmp_path / "access.log"
+    original_content = (
+        '192.0.2.12 - - [27/Oct/2026:10:00:03 +0000] '
+        '"GET /search?q=%27%20OR%201%3D1 HTTP/1.1" 400 320\n'
+    )
+    log_file.write_text(original_content, encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.analyzer",
+            str(log_file),
+            "--json",
+            str(log_file),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "JSON output path must differ from input log file" in result.stderr
+    assert log_file.read_text(encoding="utf-8") == original_content
