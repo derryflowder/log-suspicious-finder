@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
-
 SQL_INJECTION_PATTERNS = [
     re.compile(r"\bunion\s+select\b", re.IGNORECASE),
     re.compile(r"\bor\b\s+\d+\s*=\s*\d+", re.IGNORECASE),
@@ -17,6 +16,12 @@ XSS_PATTERNS = [
 ]
 
 
+SCANNER_PATTERNS = [
+    re.compile(r"/\.env(?:\b|/|$)", re.IGNORECASE),
+    re.compile(r"/wp-login\.php(?:\b|[?/]|$)", re.IGNORECASE),
+    re.compile(r"/phpmyadmin(?:\b|/|$)", re.IGNORECASE),
+]
+
 def analyze_line(line: str) -> list[str]:
     """Return suspicious indicators found in one log line."""
     decoded_line = unquote(line)
@@ -27,6 +32,9 @@ def analyze_line(line: str) -> list[str]:
 
     if any(pattern.search(decoded_line) for pattern in XSS_PATTERNS):
         findings.append("possible XSS")
+
+    if any(pattern.search(decoded_line) for pattern in SCANNER_PATTERNS):
+        findings.append("possible scanner probe")
 
     status_match = re.search(r'"[^"]*"\s+(\d{3})\s', line)
 
@@ -68,10 +76,24 @@ def main() -> None:
     except OSError as error:
         parser.error(f"cannot read log file: {error}")
 
+
     if not results:
         print("No suspicious indicators found.")
         return
 
+    print(f"Suspicious log lines: {len(results)}")
+
+    summary = {}
+
+    for _, _, findings in results:
+        for finding in findings:
+            summary[finding] = summary.get(finding, 0) + 1
+
+    print("\nFindings summary:")
+    for finding, count in sorted(summary.items()):
+        print(f"  {finding}: {count}")
+
+    print("\nDetailed findings:")
     for line_number, line, findings in results:
         print(f"[Line {line_number}] {', '.join(findings)}")
         print(f"  {line}")

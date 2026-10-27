@@ -45,3 +45,11 @@ def test_encoded_xss_is_detected():
     findings = analyze_line(line)
 
     assert "possible XSS" in findings
+
+def test_detects_scanner_probe():
+    line = '"GET /.env HTTP/1.1" 404 210'
+
+    findings = analyze_line(line)
+
+    assert "possible scanner probe" in findings
+    assert "HTTP client error (404)" in findings
